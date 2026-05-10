@@ -1,0 +1,313 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Calculadora - Búsqueda de Google</title>
+    <!-- Favicon historial Play Store -->
+    <link rel="icon" type="image/jpeg" href="https://i.ibb.co/8gFYMC6g/Screenshot-2026-05-09-10-45-37-539-com-android-vending2.jpg">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/11.8.0/math.js"></script>
+
+    <style>
+        :root {
+            --bg-page: #ffffff; 
+            --calc-bg: #000000; 
+            --text-color: #ffffff;
+            --btn-num: #333333;
+            --btn-func: #a5a5a5;
+            --btn-special: #ff9f0a;
+        }
+
+        body.dark-mode-active {
+            --bg-page: #000000;
+        }
+
+        body, html {
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-page);
+            transition: background-color 0.4s ease;
+            overflow: hidden;
+        }
+
+        /* --- CALCULADORA --- */
+        #calc-ui {
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; width: 100%;
+        }
+
+        .calculator {
+            background-color: var(--calc-bg);
+            width: 350px; padding: 25px; border-radius: 45px;
+            border: 1px solid rgba(255, 255, 255, 0.2); 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            position: relative; z-index: 10;
+        }
+
+        .settings-icon {
+            position: absolute; top: 25px; right: 25px;
+            color: var(--btn-special); font-size: 1.5rem;
+            cursor: pointer; z-index: 20;
+        }
+
+        #screen {
+            width: 100%; height: 120px;
+            display: flex; align-items: flex-end; justify-content: flex-end;
+            padding: 10px; box-sizing: border-box;
+            color: #fff; font-size: 3rem; font-weight: 300;
+            overflow: hidden;
+        }
+
+        .keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+        .btn {
+            aspect-ratio: 1 / 1; border: none; border-radius: 50%;
+            font-size: 1.3rem; cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            transition: 0.2s; user-select: none;
+            color: white;
+        }
+        .btn:active { filter: brightness(1.4); transform: scale(0.95); }
+
+        .num { background-color: var(--btn-num); }
+        .func-top { background-color: var(--btn-func); color: #000; font-weight: bold; }
+        .special { background-color: var(--btn-special); font-size: 1.8rem; }
+        .memory { background: rgba(255,255,255,0.05); color: #00d4ff; font-size: 0.8rem; border: 1px solid rgba(0,212,255,0.1); }
+        .btn-zero { grid-column: span 2; aspect-ratio: auto; border-radius: 50px; justify-content: flex-start; padding-left: 30px; }
+
+        /* --- MODO SECRETO (ESTILO CAPTURA) --- */
+        #secret-os {
+            display: none; position: fixed; inset: 0; background: #000; z-index: 1000;
+            flex-direction: column; align-items: center; overflow-y: auto; padding-bottom: 50px;
+        }
+
+        #secret-os h1 {
+            font-size: 6rem; color: #fff; margin: 40px 0 20px 0;
+            letter-spacing: 20px; font-weight: 900;
+            text-transform: uppercase; text-align: center;
+        }
+
+        .game-grid { 
+            display: grid; 
+            grid-template-columns: repeat(5, 1fr); /* 5 columnas como en la foto */
+            gap: 20px; 
+            width: 90%; 
+            max-width: 1300px;
+            margin-bottom: 40px;
+        }
+        
+        .card { 
+            background: #111; border-radius: 18px; overflow: hidden; 
+            cursor: pointer; border: 1px solid #333; transition: 0.3s;
+        }
+        .card:hover { transform: scale(1.03); border-color: #666; }
+        
+        .img-container { height: 130px; position: relative; overflow: hidden; background: #000; }
+        .img-blur { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(10px) brightness(0.6); transform: scale(1.2); }
+        .img-main { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; }
+
+        .card h4 {
+            color: white; padding: 12px 5px; margin: 0; 
+            font-size: 0.7rem; text-align: center; 
+            text-transform: uppercase; font-weight: bold;
+            background: #000; /* Barra negra inferior */
+        }
+
+        .back-btn-os {
+            background: #222; color: white; border: 1px solid #444;
+            padding: 10px 25px; border-radius: 12px; cursor: pointer;
+            font-size: 0.9rem; margin-bottom: 20px;
+        }
+        .back-btn-os:hover { background: #333; }
+
+        .os-footer { color: #444; font-size: 0.7rem; font-family: monospace; }
+
+        /* VISOR */
+        #viewer { display: none; position: fixed; inset: 0; background: #000; z-index: 2000; flex-direction: column; }
+        iframe { flex-grow: 1; border: none; background: #000; }
+    </style>
+</head>
+<body>
+
+    <!-- CALCULADORA -->
+    <div id="calc-ui">
+        <div class="calculator" id="main-calc">
+            <div class="settings-icon" onclick="toggleSettings()">⚙️</div>
+            <div id="screen">0</div>
+            
+            <div class="keypad">
+                <button class="btn memory" onclick="memOp('MC')">MC</button>
+                <button class="btn memory" onclick="memOp('M+')">M+</button>
+                <button class="btn memory" onclick="memOp('M-')">M-</button>
+                <button class="btn memory" onclick="memOp('MR')">MR</button>
+
+                <button class="btn func-top" onclick="cls()">AC</button>
+                <button class="btn func-top" onclick="del()" style="color:#ff3b30">DEL</button>
+                <button class="btn func-top" onclick="add('%')">%</button>
+                <button class="btn special" onclick="add(':')">:</button>
+
+                <button class="btn num" onclick="add('√')">√</button>
+                <button class="btn num" onclick="add('^')">^</button>
+                <button class="btn num" onclick="add('(')">(</button>
+                <button class="btn num" onclick="add(')')">)</button>
+
+                <button class="btn num" onclick="add('7')">7</button>
+                <button class="btn num" onclick="add('8')">8</button>
+                <button class="btn num" onclick="add('9')">9</button>
+                <button class="btn special" onclick="add('x')">x</button>
+
+                <button class="btn num" onclick="add('4')">4</button>
+                <button class="btn num" onclick="add('5')">5</button>
+                <button class="btn num" onclick="add('6')">6</button>
+                <button class="btn special" onclick="add('-')">−</button>
+
+                <button class="btn num" onclick="add('1')">1</button>
+                <button class="btn num" onclick="add('2')">2</button>
+                <button class="btn num" onclick="add('3')">3</button>
+                <button class="btn special" onclick="add('+')">+</button>
+
+                <button class="btn num btn-zero" onclick="add('0')">0</button>
+                <button class="btn num" onclick="add('.')">.</button>
+                <button class="btn special" onclick="solve()">=</button>
+            </div>
+
+            <!-- Panel Ajustes -->
+            <div id="settings-panel" style="display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.92); border-radius: 45px; z-index: 100; flex-direction: column; align-items: center; padding: 40px 20px; color: white; backdrop-filter: blur(10px);">
+                <h2>Ajustes</h2>
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin: 15px 0;">
+                    <span>Modo Oscuro (Fondo)</span>
+                    <input type="checkbox" onchange="toggleDarkMode(this)">
+                </div>
+                <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin: 15px 0;">
+                    <span>Color Calculadora</span>
+                    <input type="color" value="#000000" onchange="updateColor('--calc-bg', this.value)">
+                </div>
+                <button style="margin-top: 30px; background: var(--btn-special); border: none; padding: 12px 30px; border-radius: 15px; color: white; cursor: pointer; font-weight: bold;" onclick="toggleSettings()">GUARDAR</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODO SECRETO JUEGOS -->
+    <div id="secret-os">
+        <h1>JUEGOS</h1>
+        <div class="game-grid" id="game-list"></div>
+        <button class="back-btn-os" onclick="location.reload()">volver a calculadora (k)</button>
+        <div class="os-footer">creado por Paco el butanero</div>
+    </div>
+
+    <!-- VISOR -->
+    <div id="viewer">
+        <div style="background:#000; padding:15px; display:flex; justify-content:space-between; align-items:center;">
+            <span id="v-title" style="color:white; font-family: monospace;">CARGANDO...</span>
+            <button onclick="closeGame()" style="background:#ff3b30; color:white; border:none; padding:8px 15px; border-radius:8px; cursor:pointer;">CERRAR</button>
+        </div>
+        <iframe id="iframe" src=""></iframe>
+    </div>
+
+    <script>
+        let current = "";
+        let memory = 0;
+        const screenDiv = document.getElementById('screen');
+
+        function add(v) { 
+            if (current === "0") current = v; 
+            else current += v; 
+            updateScreen();
+        }
+
+        function cls() { current = ""; updateScreen("0"); }
+        function del() { current = current.toString().slice(0, -1); updateScreen(current === "" ? "0" : current); }
+        function updateScreen(val) { screenDiv.innerText = val || current; }
+
+        function solve() {
+            if(current === "9012") { openSecretMode(); } 
+            else {
+                try {
+                    let expression = current.replace(/x/g, '*').replace(/:/g, '/').replace(/√/g, 'sqrt');
+                    let result = math.evaluate(expression);
+                    current = result.toString();
+                    updateScreen();
+                } catch {
+                    updateScreen("Error");
+                    setTimeout(cls, 1500);
+                }
+            }
+        }
+
+        function memOp(op) {
+            let val = parseFloat(current) || 0;
+            if(op === 'M+') memory += val;
+            if(op === 'M-') memory -= val;
+            if(op === 'MR') { current = memory.toString(); updateScreen(); }
+            if(op === 'MC') memory = 0;
+        }
+
+        function toggleSettings() {
+            const panel = document.getElementById('settings-panel');
+            panel.style.display = (panel.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function toggleDarkMode(cb) {
+            if(cb.checked) document.body.classList.add('dark-mode-active');
+            else document.body.classList.remove('dark-mode-active');
+        }
+
+        function updateColor(variable, val) { document.documentElement.style.setProperty(variable, val); }
+
+        const database = [
+            { name: "FALL GUYS", thumb: "https://i.ibb.co/RkTNrYxc/descarga-5.jpg", url: "https://d1tmbzjih4bfq6.cloudfront.net/class/Fall-Guys/" },
+            { name: "SCRAP METAL", thumb: "https://i.ibb.co/ym8Q3PMx/splash.png", url: "https://geet.in.net/get/scrap-metal/game.html" },
+            { name: "CUPHEAD", thumb: "https://i.ibb.co/d4XFrtbV/logo-1.png", url: "https://julianbiancardi.github.io/Cuphead/" },
+            { name: "CROSSY ROAD", thumb: "https://i.ibb.co/Xf6p8HTn/crossyroad.webp", url: "https://geet.in.net/get/crossy-road/game.html" },
+            { name: "SURVIVAL RACE", thumb: "https://i.ibb.co/pBYPJV16/logo-2.png", url: "https://geet.in.net/get/survival-race/embed.html" },
+            { name: "TEMPLE RUN 2", thumb: "https://i.ibb.co/7t8gmXwp/og-icon.png", url: "https://geet.in.net/get/temple-run-2/game.html" },
+            { name: "Gameboy Games", thumb: "https://i.ibb.co/qLfcTgX2/OIP-13.webp", url: "https://teddblue.github.io/gamebois/" },
+            { name: "Stickman Hook", thumb: "https://i.ibb.co/PGKB6wRj/stickman-hook.jpg", url: "https://lnahtml.github.io/a/stickman-hook/" },
+            { name: "worldguessr", thumb: "https://i.ibb.co/hJKP4XqY/descarga-4.jpg", url: "https://www.worldguessr.com/?gogy" },
+            { name: "DTA 6", thumb: "https://i.ibb.co/nqzfYPpb/DTA-6-image.webp", url: "https://cdn2.unblocked-games-free.com/games/3938/g2SpKqr4HGOjUQzn/285639/keqtfmn01j5v773e5cw2i8shyxdozu55/index.html" },
+            { name: "GOOGLE UNBLOCK", thumb: "https://i.ibb.co/dw0z6KNX/logo.png", url: "https://playernations.casadotricolor.com.br/" },
+            { name: "ROCKETGOAL.IO", thumb: "https://i.ibb.co/GfnYQCS6/OIP-11.webp", url: "https://games.crazygames.com/es_ES/rocketgoal-io/index.html?instantJoin=true" },
+            { name: "DUDE THEFT AUTO", thumb: "https://i.ibb.co/XfCgtkts/loading-1.png", url: "https://game.azgame.io/dude-theft-auto/" },
+            { name: "R.E.P.O", thumb: "https://i.ibb.co/1YHNsvhQ/OIP.jpg", url: "https://gamequestfree.github.io/repo/" },
+            { name: "GEOMETRY DASH LITE", thumb: "https://i.ibb.co/TxN0VFgV/OIP-8.webp", url: "https://geometrylitegame.org/game/geometry-dash-lite/" },
+            { name: "BASKETBALL STARS", thumb: "https://i.ibb.co/3Lxw2t7/descargar.webp", url: "https://db.mathify.top/html/basketball_stars/index.html" },
+            { name: "LEVEL DEVIL", thumb: "https://i.ibb.co/YFvyqL5R/descarga-1.jpg", url: "https://bitlifeonline.github.io/level-devil/" },
+            { name: "Home Alone", thumb: "https://i.ibb.co/prbbSRnP/descarga.png", url: "https://scaryshawarmakioskanomaly.com/gg/home-alone/" },
+            { name: "STEAL A BRAINROT", thumb: "https://i.ibb.co/n8tZDdtj/descarga-2.jpg", url: "https://crazygames.cdn.msnfun.com/9pltx207s22g/v6/index.html" },
+            { name: "SUBWAY SURFERS", thumb: "https://i.ibb.co/fVdGjW6h/OIP-3.webp", url: "https://ubg98.github.io/SubwaySurfers/" },
+            { name: "CLASH ROYALE", thumb: "https://i.ibb.co/kVd2VCTr/OIP-4.webp", url: "https://db.mathify.top/html/clash_royale/index.html" },
+            { name: "DOGE MINER", thumb: "https://i.ibb.co/Jw7WLP6K/OIP-5.webp", url: "https://geet.in.net/get/doge-miner/game.html" },
+            { name: "FNAF 1", thumb: "https://i.ibb.co/ZzdW04zV/OIP-6.webp", url: "https://geet.in.net/get/fnaf/game.html" }
+        ];
+
+        function openSecretMode() {
+            document.getElementById('calc-ui').style.display = 'none';
+            document.getElementById('secret-os').style.display = 'flex';
+            const list = document.getElementById('game-list');
+            list.innerHTML = "";
+            database.forEach(j => {
+                list.innerHTML += `
+                    <div class="card" onclick="openGame('${j.name}','${j.url}')">
+                        <div class="img-container">
+                            <img class="img-blur" src="${j.thumb}">
+                            <img class="img-main" src="${j.thumb}">
+                        </div>
+                        <h4>${j.name}</h4>
+                    </div>`;
+            });
+        }
+
+        function openGame(name, url) {
+            document.getElementById('v-title').innerText = name;
+            document.getElementById('iframe').src = url;
+            document.getElementById('viewer').style.display = 'flex';
+        }
+        function closeGame() {
+            document.getElementById('viewer').style.display = 'none';
+            document.getElementById('iframe').src = "";
+        }
+        document.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'k') location.reload(); });
+    </script>
+</body>
+</html>
